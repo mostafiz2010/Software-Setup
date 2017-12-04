@@ -1,0 +1,263 @@
+nfrastruktur
+Code Repository (Git)
+Für die Verwaltung von dem Quellcode wird das Bitbucket Server von Atlassian verwendet. Die Beschreibung liegt auf einer separaten Seite.
+CodeIntegration/Deploy Server
+Für die kontinuierliche Integration und Delivery/Deployment und initiale Testen wird das Jenkins Software-System verwendet. Beschreibung zur Installation und Einrichtung sowohl zu dem System von dem es gehostet wird folgt. Die Beschreibung liegt auf einer separaten Seite.
+IANUS.ingest
+Voraussetzungen
+Sie müssen die folgende Software installieren:
+JDK 7 oder 8,
+Maven 3 und
+Eclipse Mars (JEE)
+MySQL
+Man kann ein anderes IDE für die Entwicklung verwenden, aber diese kurze Einleitung ist für Eclipse gedacht.
+Maven und Proxies
+Wenn das Netzwerk (wie beim DAI-Netzwerk) einen Proxy-Server hat, wird Maven nicht die Dependencies herunterlagen können. Dieses Problem tritt auf, wenn Maven zu lange braucht, eine Datei herunterzuladen. Man sieht keine Exception. Um dieses Problem zu beheben, muss man die Datei HOME/.m2/settings.xml modifizieren (oder erzeugen, falls sie nicht existiert).
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 http://maven.apache.org/xsd/settings-1.0.0.xsd">
+  <proxies>
+    <proxy>
+      <active>true</active>
+      <protocol>http</protocol>
+      <host>10.128.1.1</host>
+      <port>8080</port>
+    </proxy>
+    <proxy>
+      <active>true</active>
+      <protocol>https</protocol>
+      <host>10.128.1.1</host>
+      <port>8080</port>
+    </proxy>
+  </proxies>
+</settings>
+Maven settings.xml located on mac
+If you use brew to install maven, then the settings file should be in this conf folder.
+/usr/local/Cellar/maven/<version>/libexec/conf
+
+
+Eclipse und Proxies
+Eclipse muss sich mit Internet verbinden, wenn neue Software (Plug-in) installiert oder aktualisiert wird. Eclipse kann nicht automatisch die Proxy des DAI-Netwerkes erkennen, weswegen sie manuell eingerichtet werden soll. Folgender Link sagt, wie kann man die Proxy eingerichten:
+ http://www.mkyong.com/web-development/how-to-configure-proxy-settings-in-eclipse/
+Host: 10.128.1.1
+Port: 8080
+Provider: Manuel
+Auth: false
+Einrichtung der Entwicklungsumgebung
+In Terminal:
+mkdir workspace
+cd workspace
+git clone http://<yourusername>@ianus-dev.dainst.org:7990/scm/ian/ianus.core.git
+cd ianus.core
+mvn install
+mvn eclipse:eclipse
+Dann in Eclipse:
+Gehen Sie zum: File → Import → General → Existing Projects into Workspace
+Man muss den Ordner "ianus.core" suchen und auswählen.
+Sie werden vier Projekten sehen (ianus-access, ianus-ingest-core, ianus-ingest-web und ianus-metadata).
+Sie müssen die vier Projekten auswählen und auf Finish klicken.
+MySQL Configuration
+In order to start the application ianus-ingest-web, we muss configure three databases:
+ianus: this DB saves information related to information packages,
+ianus_metadata: this DB saves information related to the metadata of the collections.
+camunda: this DB is used by the camunda Framework.
+ianus-ingest-web is implemented to use MySQL. If you do not have an instance of MySQL, in Ubuntu you can install it using this command:
+
+sudo apt-get install mysql-server
+
+You have never set a root password for MySQL server, the server does not require a password at all for connecting as root. To setup root password for first time, use mysqladmin command at shell prompt as follows:
+$ mysqladmin -u root password NEWPASSWORD
+
+However, if you want to change (or update) a root password, then you need to use the following command:
+$ mysqladmin -u root -p'oldpassword' password newpass
+
+For example, If the old password is abc, you can set the new password to admin, enter:
+$ mysqladmin -u root -p'abc' password 'admin'
+
+When your instance of the DB is empty, you can create the three mentioned schemas with this command:
+mysql -u userName -p
+CREATE DATABASE ianus;
+CREATE DATABASE ianus_metadata;
+CREATE DATABASE camunda;
+exit;
+If  your DB has an old version of the schemas, you can remove and create them again with this command:
+mysql -u userName -p
+DROP DATABASE ianus;
+DROP DATABASE ianus_metadata;
+DROP DATABASE camunda;
+CREATE DATABASE ianus;
+CREATE DATABASE ianus_metadata;
+CREATE DATABASE camunda;
+exit;
+Open mysql using terminal
+By default, the root user in MySQL doesn't have a password and can only connect from localhost.
+
+$ /usr/local/mysql/bin/mysql -uroot
+But when it is not possible to execute mysql directly from the terminal. Use this below command. 
+open terminal and type
+$ sudo sh -c 'echo /usr/local/mysql/bin > /etc/paths.d/mysql'
+then close terminal and open a new terminal and type
+$ mysql -u root -p
+ 
+Enter password:
+hit enter, and it will ask you for password
+
+mysql> exit;
+persistence.xml
+In the source code, these schemas are configured in two different places. The schemas ianus-access and ianus_metadata are configured in file: /ianus.core/modules/ianus-ingest-web/src/main/resources/META-INF/persistence.xml and ianus-access schema is configured in file: /ianus.core/modules/ianus-access/src/main/resources/META-INF/persistence.xml. This file is composed of two persitence-units. Each unit represents a connection to a certain database in MySQL. The key properties are:
+javax.persistence.jdbc.user: a MySQL user that has RW right for the given DB.
+javax.persistence.jdbc.password: the password MySQL user.
+javax.persistence.jdbc.url: the url used by JDBC to connect to the DB.
+If you do not have this file, you can create this from the template /ianus.core/modules/ianus-ingest-web/src/main/resources/META-INF/persistence.xml.template. There you muss replace following properties with the user name and password of your DB instance:
+javax.persistence.jdbc.user
+javax.persistence.jdbc.password
+In the template file, the propertiy "user" is initialized with the value "DB_USER_NAME" and the property "password" with the value "DB_PASSWORD". Both values should be replaced.
+If you want to use other schema name, you must change the property “javax.persistence.jdbc.url” of the corresponding unit:
+<property name="javax.persistence.jdbc.url" value="jdbc:mysql://localhost/YOUR_SCHEMA_NAME?tinyInt1isBit=false"/>
+persistence.xml for H2 in-memory database  
+There is another persistence. xml file in the source code. The file is located at:  /ianus.core/modules/ianus-ingest-core/src/test/resources/META-INF/persistence.xml.template. This file is used to create a H2 embeded database. This database is used to execute the JUnit test for DataCollection clone.  
+camunda.cfg.xml
+On the other hand, the schema camunda is configured in file: /ianus.core/modules/ianus-ingest-web/src/main/resources/camunda.cfg.xml.  In the same way that before, you can create this file from the template: /ianus.core/modules/ianus-ingest-web/src/main/resources/camunda.cfg.xml.template. In this file, you must replace following properties:
+jdbcUsername
+jdbcPassword
+
+ianus-access.properties
+The ianus-access properties schema is configured in the:  IANUS.Core/modules/ianus-access/src/main/resources/ianus-access.properties.template file. Copy this file and paste it in the same location without the word template. Within this properties file, change the document.root address. The address will vary for individual users. It redirects the user's ianus-access project deployment address. For example: "/home/mostafizur/Desktop/software/workspace/ianus.core/modules/ianus-access/target/ianus-access". The address should be change until .../workspace/...SAME and rest of the directory will be same. 
+
+ianus-ingest-web.properties
+In addition, in the source code, this schema is configured in the:  /ianus.core/modules/ianus-ingest-web/src/main/resources folder. Copy the file ianus-ingest-web.properties.template and paste it in the same location without the word template. 
+Auto Deployment Script
+In the project structure, IANUS.access and IANUS.ingest.web module has a folder name "script". Within this folder, has a bash file (ingest_deployment, access_deployment) that needs to modify to auto deply the access and ingest module in the Live server. You shoud modify "personAddress" and "hostKey". Within the "personAddress", put the project Absolute path and in the "hostKey" put the Live server ssh username. 
+After that, when you run the script, it will autometically deply the access module in the Live server as ROOT.war file and ingest module as the ianus-ingest-web.war. 
+
+personAddress=/Users/mostafizur/Desktop/software
+ 
+hostKey=USERNAME@195.37.32.7
+Additional Tools
+ffmpeg
+The tool has to be installed on the server and the development environment, for running the unit tests and compilation.
+Installation paths are currently hardcoded in ianus-ingest-core VideoProcessor and the following paths should be available:
+/usr/bin/ffmpeg
+/usr/bin/ffprobe
+Install ffmpeg on Linux (ffprobe will be installed as well):
+install ffmpeg
+sudo apt install ffmpeg
+Running tests and building the app will fail, if ffmpeg is missing.
+FITS
+Download FITS from their project page: https://projects.iq.harvard.edu/fits/home
+Unzip the package to /usr/share, so that in the end the shellscript is available at this path:
+/usr/share/fits/fits-1.2.0/fits.sh
+The class de.ianus.ingest.core.processEngine.ms.fits.Fits contains a variable FITS_BINARY, which points to this installation path.
+More Info on the FITS integration.
+Deployment
+Das Modul IANUS.ingest enthält eine Web-Applikation (IANUS.ingest.web), die in einem Java-Container deploy werden kann. Maven erlaubt das Deployment durch die Verwendung von Plugins. Wir haben zwei Plugins für das automatische Deployment eingerichtet:
+tomcat7-maven-plugin und
+jetty-maven-plugin.
+Für das Deployment mit Maven Verwenden Sie die folgenden Befehle:
+cd workspace/ianus.core/modules/ianus-ingest-web
+mvn tomcat7:run (für Tomcat7)
+mvn jetty:run (für Jetty)
+Jetzt sollten Sie die Web-Applikation in http://localhost:8080/ianus-ingest-web sehen können.
+
+Initialize Storage Service
+Go to: http://localhost:8080/ianus-ingest-web
+
+On the top right corner click on "Process Engine".
+Push the first Button "Submit" next to "Deploy transfer workflow".
+Click on "Working Storage" (on the left/ next to "Process Engine").
+Push the second Button "Init Core".
+
+Check if the following folders are created. 
+The user of tomcat should have wro on these folders (if the folders are not created automatically, there are probably right problems):
+
+/data/ianus/aip_storage
+/data/ianus/dip_storage
+/data/ianus/sip_storage
+/data/ianus/tip_storage
+
+TODO: This folder is not created automatically -> we need to check, if we need it any longer
+/data/ianus/working_storage
+Debugging
+Debug mit Tomcat
+Im Terminal:
+mvnDebug tomcat7:run
+Maven wird folgendes Output zeigen:
+Preparing to Execute Maven in Debug Mode
+Listening for transport dt_socket at address: 8000
+
+Das bedeutet, dass Maven auf einen Listener (wie z.B. Eclipse)  zu starten wartet.
+Dann in Eclipse:
+Gehen Sie zum Debug Configuration
+Wählen Sie Remote Java Aplication aus
+Klicken Sie auf New
+Man muss checken, dass der Port in den Connection Properties der gleiche wie beim dt_socket im Maven ist (sieh Abbildung Debug Configurations).
+Klicken Sie auf Debug
+Jetzt können Sie Breakpoints an den Quellcode anlegen.
+Debug Configurations
+Maven KB
+In diesem Abschnitt wollen wir ein gemeinsames Knowledge-Base für Maven und für den Umgang mit diesem Werkzeug erstellen.
+ Maven Built-In
+To verify the Maven installation, in terminal, issue the command mvn -version
+
+$mvn -version
+ 
+Apache Maven 3.3.9 (bb52d8502b132ec0a5a3f4c09453c07478323dc5; 2015-11-10T17:41:47+01:00)
+Maven home: /usr/local/Cellar/maven/3.3.9/libexec
+Java version: 1.8.0_101, vendor: Oracle Corporation
+Java home: /Library/Java/JavaVirtualMachines/jdk1.8.0_101.jdk/Contents/Home/jre
+Default locale: en_US, platform encoding: UTF-8´
+OS name: "mac os x", version: "10.11.6", arch: "x86_64", family: "mac"
+
+A quick check with whereis command :
+$ whereis mvn
+/usr/bin/mvn
+Install Maven Manually
+After the upgrade of Mac OS X, Maven was removed (no idea why). So, You have to install it manually.
+
+Download Maven
+Download the Maven, for example apache-maven-3.5.0-bin.tar.gz. Extracts it,
+Set Maven command in environment variable.
+Update ~/. bash_profile – create this file if doesn’t exist.
+$ sudo nano ~/.bash_profile
+.bash_profile
+$ export M2_HOME=/Users/mkyong/apache-maven-3.1.1
+$ export PATH=$PATH:$M2_HOME/bin
+
+Restart the terminal. Test it.
+$ mvn -version
+ 
+Apache Maven 3.3.9 (bb52d8502b132ec0a5a3f4c09453c07478323dc5; 2015-11-10T17:41:47+01:00)
+Maven home: /usr/local/Cellar/maven/3.3.9/libexec
+Java version: 1.8.0_101, vendor: Oracle Corporation
+Java home: /Library/Java/JavaVirtualMachines/jdk1.8.0_101.jdk/Contents/Home/jre
+Default locale: en_US, platform encoding: UTF-8´
+OS name: "mac os x", version: "10.11.6", arch: "x86_64", family: "mac"
+
+Glossar
+Goal
+Goals sind von Maven-Plugins angebotene ausführbare Kommandos. Sie können auch direkt über die Kommandozeile aufgerufen werden. Dabei wird getrennt durch einen Doppelpunkt (":") der Plugin-Name und der Goal-Name angegeben.
+Am Beispiel von dem Apache Maven Eclipse Plugin :
+eclipse:configure-workspace is used to add the classpath variable M2_REPO to Eclipse which points to your local repository and optional to configure other workspace features.
+eclipse:eclipse generates the Eclipse configuration files.
+eclipse:clean is used to delete the files used by the Eclipse IDE.
+
+Maven-Plugin
+Maven-Plugins sind Bibliotheken, die thematisch zusammengehörende Goals implementieren. Wichtige Plugins sind zum Beispiel:
+archetype Ermöglicht das Erstellen von Projekten anhand von Vorlagen/Templates und das Erstellen von Vorlagen/Templates von bestehenden Projekten.
+installThe Install Plugin is used during the install phase to add artifact(s) to the local repository. The Install Plugin uses the information in the POM (groupId, artifactId, version) to determine the proper location for the artifact within the local repository. Mit diesem Befehl lädt Maven alle in der POM Datei definierten Abhängigkeiten herunter und installiert sie in dem lokalen Maven-Repository.
+jar Ein plugin der die Erstellung von JAR's ermöglicht.
+war The WAR Plugin is responsible for collecting all artifact dependencies, classes and resources of the web application and packaging them into a web application archive.
+Archetype und Standard Directory Layout
+Ein Maven-Archetype ist ein Projekt-Template. Über das archetype-Plugin können Standard-Directory-Layouts und Projektvorlagen für verschiedene Projekttypen erstellt werden. Die Benutzung einer vorgegebenen Verzeichnisstruktur ermöglicht schnellere Entwicklung und reduziert die Wahrscheinlichkeit für falsche Konfiguration (convention over configuration). Having a common directory layout would allow for users familiar with one Maven project to immediately feel at home in another Maven project. 
+  Standard Directory Layout
+Artefakt
+Mit Artefakt sind im Zusammenhang mit Maven Arbeitsergebnisse gemeint. Maven-Projekte haben in der Regel ein Hauptergebnis-Artefakt, oft eine jar-, war- oder ear-Datei. Aber auch andere Ergebnisse wie Projektdokumentationen können als Artefakt bezeichnet werden.
+artifactId
+Die artifactId ist der Name des Hauptergebnis-Artefakts dieses Projekts. Der vollständige Dateiname des Hauptergebnis-Artefakts wird meistens gebildet aus: "<artifactId>-<version>.<type>", also zum Beispiel "junit-3.8.1.jar" oder "MeineApp-1.0-SNAPSHOT.jar". 
+Version
+Die version des Projekts, typischerweise im Format: "<Major>.<Minor>.<Bugfix>-<Qualifier>-<Buildnumber>" (wobei die vorderen Teile bei Versionsvergleichen numerisch gewertet werden (1.10 ist aktueller als 1.9) und die hinteren Teile optional sind). Lautet der Qualifier "SNAPSHOT", bedeutet dies, dass sich das Projekt noch in Entwicklung befindet und die Versionsnummer nicht bei jedem Build hochgezählt wird (was bei Versionsvergleichen eine Rolle spielt).
+Maven in Eclipse
+Warnings
+Nach dem importieren eines Maven-Projekts kann es vorkommen, dass Eclipse einige Warnungen ausgibt. Die Warnungen sind in der Regel nicht problematisch und in den neuen Versionen des m2e Plugins deaktiviert werden.
+Preferences > Maven > Warnings > Disable "Version is duplicate of parent version" warning
+Mehr dazu gibt es auf dieser Seite.
